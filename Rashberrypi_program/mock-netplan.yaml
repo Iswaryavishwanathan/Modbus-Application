@@ -1,0 +1,10 @@
+network:
+    version: 2
+    wifis:
+        renderer: networkd 
+        wlan0:
+            access-points:
+                airtel:
+                    password: air@123
+            dhcp4: true 
+            optional: true
