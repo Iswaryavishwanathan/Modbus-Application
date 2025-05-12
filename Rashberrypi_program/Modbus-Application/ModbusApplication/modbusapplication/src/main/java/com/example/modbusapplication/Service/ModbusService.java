@@ -80,32 +80,65 @@ public class ModbusService {
                 }
     
                 System.out.println("✅ Connected to PLC at IP: " + plcIp);
+                int startOffset = 400; // 40112
+                int count = 25;
+
+ReadMultipleRegistersRequest request = new ReadMultipleRegistersRequest(startOffset, count);
+request.setUnitID(1);
+
+ModbusTCPTransaction transaction = new ModbusTCPTransaction(connection);
+transaction.setRequest(request);
+transaction.execute();
+
+ReadMultipleRegistersResponse response = (ReadMultipleRegistersResponse) transaction.getResponse();
+
     
-                // Execute Modbus read transaction
-                ReadMultipleRegistersRequest request = new ReadMultipleRegistersRequest(0, 10);
-                request.setUnitID(1);
+                // // Execute Modbus read transaction
+                // ReadMultipleRegistersRequest request = new ReadMultipleRegistersRequest(400, 100);
+                // request.setUnitID(1);
     
-                ModbusTCPTransaction transaction = new ModbusTCPTransaction(connection);
-                transaction.setRequest(request);
-                transaction.execute();
+                // ModbusTCPTransaction transaction = new ModbusTCPTransaction(connection);
+                // transaction.setRequest(request);
+                // transaction.execute();
     
-                ReadMultipleRegistersResponse response = (ReadMultipleRegistersResponse) transaction.getResponse();
+                // ReadMultipleRegistersResponse response = (ReadMultipleRegistersResponse) transaction.getResponse();
     
                 List<Integer> registerValues = new ArrayList<>();
                 for (int i = 0; i < response.getWordCount(); i++) {
                     registerValues.add(response.getRegister(i).getValue());
                 }
+// for (int i = 0; i < response.getWordCount(); i++) {
+//     int value = response.getRegister(i).getValue();
+//     System.out.println("Register = " + value);
+// }
+for (int i = 0; i < response.getWordCount(); i++) {
+    int value = response.getRegister(i).getValue();
+    int actualAddress = 40000 + startOffset + i;  // Convert offset back to Modbus address
+    System.out.println("Register[" + actualAddress + "] = " + value);
+}
+
+
+                // byte[] byteArray = new byte[16];
+                // int index = 0;
+                // for (int i = 14; i <= 22; i++) {
+                //     byteArray[index++] = (byte) (registerValues.get(i) & 0xFF);
+                //     byteArray[index++] = (byte) ((registerValues.get(i) >> 8) & 0xFF);
+                // }
     
-                byte[] byteArray = new byte[16];
-                int index = 0;
-                for (int i = 2; i <= 9; i++) {
-                    byteArray[index++] = (byte) (registerValues.get(i) & 0xFF);
-                    byteArray[index++] = (byte) ((registerValues.get(i) >> 8) & 0xFF);
-                }
-    
-                String batchName = new String(byteArray, StandardCharsets.UTF_8).trim();
-                System.out.println("Machine Name from HMI: " + batchName);
-    
+                // String batchName = new String(byteArray, StandardCharsets.UTF_8).trim();
+                // System.out.println("Machine Name from HMI: " + batchName);
+byte[] byteArray = new byte[12]; // 6 registers * 2 bytes
+int index = 0;
+for (int i = 16; i <= 21; i++) { // 40416 to 40421
+    int value = registerValues.get(i);
+     byteArray[index++] = (byte) (value & 0xFF);  
+    byteArray[index++] = (byte) ((value >> 8) & 0xFF); // High byte
+         // Low byte
+}
+String batchName = new String(byteArray, StandardCharsets.UTF_8).trim();
+System.out.println("Machine Name from HMI: " + batchName);
+
+
                 deviceId = systemConfig.getDeviceName();
                 System.out.println("Device ID: " + deviceId);
     
@@ -116,10 +149,17 @@ public class ModbusService {
                 List<ModbusRecord> recodsList = new ArrayList<>();
                 recodsList.add(new ModbusRecord("datetime", localTime));
                 recodsList.add(new ModbusRecord("batchName", batchName));
-                recodsList.add(new ModbusRecord("setWeight", "" + registerValues.get(0)));
-                recodsList.add(new ModbusRecord("actualWeight", "" + registerValues.get(1)));
+                recodsList.add(new ModbusRecord("setWeight", "" + registerValues.get(2)));
+                recodsList.add(new ModbusRecord("presentWeight", "" + registerValues.get(12)));
+                recodsList.add(new ModbusRecord("totalWeight", "" + registerValues.get(8)));
                 recodsList.add(new ModbusRecord("deviceId", deviceId));
-    
+            System.out.println("datetime: " + localTime);
+             System.out.println("lotname: " + batchName);
+            System.out.println("setweight: " + registerValues.get(2));
+            System.out.println("presentweight: " + registerValues.get(12));
+            System.out.println("totalweight: " + registerValues.get(8));
+            System.out.println("deviceid: " + deviceId);
+     
                 ByteString byteString = toByteString(recodsList);
     
                 try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath, true))) {
@@ -169,19 +209,17 @@ public class ModbusService {
         }
         return ByteString.copyFrom(bos.toByteArray());
     }
-    public int peekActualWeight() {
-        try {
-            int[] registers = readRegistersRaw();
-            if (registers.length > 1) {
-                return registers[1]; // actual weight assumed at index 1
-            }
-            return -1;
-        } catch (Exception e) {
-            System.err.println("Error peeking weight: " + e.getMessage());
-            return -1;
-        }
+  
+    public int peekTotalWeightRegister8() {
+    try {
+        int[] registers = readRegistersRaw();
+        return (registers.length > 8) ? registers[8] : -1;
+    } catch (Exception e) {
+        System.err.println("⚠️ Error reading total weight (register 8): " + e.getMessage());
+        return -1;
     }
-    
+}
+
     public int[] readRegistersRaw() {
         TCPMasterConnection connection = null;
         try {
@@ -198,7 +236,7 @@ public class ModbusService {
                 throw new IOException("Unable to connect to PLC at IP: " + plcIp);
             }
     
-            ReadMultipleRegistersRequest request = new ReadMultipleRegistersRequest(0, 10);
+            ReadMultipleRegistersRequest request = new ReadMultipleRegistersRequest(400, 25);
             request.setUnitID(1);
     
             ModbusTCPTransaction transaction = new ModbusTCPTransaction(connection);

@@ -16,6 +16,7 @@ public class UploaderService {
     private static final String FILE_PATH = "modbus-buffer.txt";
     private static final String TEMP_FILE_PATH = "temp.txt";
     private static final String UPLOAD_URL = "http://localhost:8082/api/upload-bytes";
+    //  private static final String UPLOAD_URL = "http://13.202.101.254:8084/api/upload-bytes";
     private static final int MAX_RETRY_ATTEMPTS = 3;
 
     private final RestTemplate restTemplate = new RestTemplate();
