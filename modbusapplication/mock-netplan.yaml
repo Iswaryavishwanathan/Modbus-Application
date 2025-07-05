@@ -1,0 +1,10 @@
+network:
+    version: 2
+    wifis:
+        renderer: networkd 
+        wlan0:
+            access-points:
+                :
+                    password: Air#30700
+            dhcp4: true 
+            optional: true
